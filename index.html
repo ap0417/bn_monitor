@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance Monitor Pro (CSV Export)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <style>
+        :root {
+            --bg-body: #000000;
+            --bg-hover: #111111;
+            --border-color: #222;
+            --text-primary: #e0e0e0;
+            --text-muted: #777;
+            --up-color: #0ECB81;
+            --down-color: #F6465D;
+            --spot-vol: #F0B90B;
+            --fut-vol: #3b82f6;
+            --funding-pos: #ff9f43;
+            --funding-neg: #00d2d3;
+        }
+        
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-primary);
+            font-family: 'DIN', 'Roboto', Helvetica, Arial, sans-serif;
+            font-size: 0.85rem;
+            overflow-x: hidden;
+        }
+
+        .container-fluid { padding: 0 20px; }
+
+        .table-custom { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .table-custom thead th {
+            background-color: #080808;
+            color: #666;
+            font-weight: 600;
+            font-size: 0.75rem;
+            padding: 12px 8px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky; top: 0; z-index: 10;
+            text-align: right;
+            cursor: pointer;
+        }
+        .table-custom thead th:first-child { text-align: left; padding-left: 10px; }
+        .table-custom tbody tr { border-bottom: 1px solid var(--border-color); }
+        .table-custom tbody tr:hover { background-color: var(--bg-hover); }
+        .table-custom td {
+            padding: 10px 8px;
+            vertical-align: middle;
+            text-align: right;
+            border-bottom: 1px solid #1a1a1a;
+            white-space: nowrap;
+        }
+        .table-custom td:first-child { text-align: left; padding-left: 10px; }
+
+        .text-up { color: var(--up-color); }
+        .text-down { color: var(--down-color); }
+        .text-muted { color: var(--text-muted); }
+        .symbol-text { font-size: 1rem; font-weight: bold; color: #fff; text-decoration: none; }
+        .vol-spot { color: var(--spot-vol); opacity: 0.9; }
+        .vol-fut { color: var(--fut-vol); opacity: 0.9; }
+        .fund-pos { color: var(--funding-pos); font-weight: bold; }
+        .fund-neg { color: var(--funding-neg); font-weight: bold; }
+
+        .loading-line { height: 2px; background: #111; width: 100%; position: fixed; top: 0; left: 0; z-index: 9999; }
+        .loading-line::after {
+            content: ''; position: absolute; height: 100%; width: 30%; background: var(--spot-vol);
+            animation: slide 1.5s infinite ease-in-out;
+        }
+        @keyframes slide { from { left: -30%; } to { left: 100%; } }
+
+        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 15px 5px; }
+        
+        .btn-action { 
+            background: #222; border: 1px solid #333; color: #ccc; 
+            padding: 5px 15px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;
+            margin-left: 10px;
+        }
+        .btn-action:hover { background: #333; color: #fff; }
+        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-csv { border-color: #2c3e50; color: #81c784; }
+        .btn-csv:hover { background: #1b2631; color: #a5d6a7; }
+
+        .border-r { border-right: 1px solid #1a1a1a; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="loading-line" v-if="loading"></div>
+
+    <div class="container-fluid">
+        <!-- 头部 -->
+        <div class="top-bar">
+            <div>
+                <span class="fw-bold text-white fs-5 me-2">BINANCE SCANNER</span>
+                <span class="badge bg-dark border border-secondary text-secondary fw-normal">Spot & Futures Data</span>
+            </div>
+            <div class="d-flex align-items-center">
+                <span class="text-muted small me-3" v-if="statusMsg">{{ statusMsg }}</span>
+                
+                <!-- 导出按钮 -->
+                <button @click="exportToCSV" class="btn-action btn-csv" :disabled="loading || tokens.length===0">
+                    📥 导出 CSV
+                </button>
+
+                <!-- 刷新按钮 -->
+                <button @click="fetchData" class="btn-action" :disabled="loading">
+                    {{ loading ? 'Updating...' : 'Refresh' }}
+                </button>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="table-responsive">
+            <table class="table-custom">
+                <thead>
+                    <tr>
+                        <th style="min-width: 100px;">Symbol</th>
+                        <th>Price (Spot)</th>
+                        <th>1H %</th>
+                        <th>4H %</th>
+                        <th class="border-r">24H %</th>
+                        <th>Spot Vol</th>
+                        <th class="border-r">Fut Vol</th>
+                        <th>OI (Value)</th>
+                        <th>OI Chg 4H</th>
+                        <th class="border-r">OI Chg 24H</th>
+                        <th>Funding Rate</th>
+                        <th>7D APY</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="tokens.length === 0">
+                        <td colspan="12" class="text-center py-5 text-muted">
+                            正在初始化数据连接...
+                        </td>
+                    </tr>
+                    <tr v-for="t in tokens" :key="t.symbol">
+                        <td><span class="symbol-text">{{ t.base }}</span></td>
+                        <td class="fw-bold text-white">${{ fmtPrice(t.spotPrice) }}</td>
+                        
+                        <td :class="color(t.spotChg1h)">
+                            <span v-if="t.spotChg1h !== null">{{ fmtPct(t.spotChg1h) }}%</span><span v-else class="text-muted">--</span>
+                        </td>
+                        <td :class="color(t.spotChg4h)">
+                            <span v-if="t.spotChg4h !== null">{{ fmtPct(t.spotChg4h) }}%</span><span v-else class="text-muted">--</span>
+                        </td>
+                        <td :class="color(t.spotChg24h)" class="border-r fw-bold">
+                            {{ fmtPct(t.spotChg24h) }}%
+                        </td>
+
+                        <td class="vol-spot">${{ fmtVol(t.spotVol) }}</td>
+                        <td class="vol-fut border-r">${{ fmtVol(t.futVol) }}</td>
+
+                        <td class="text-white">
+                            <span v-if="t.oiValue">${{ fmtVol(t.oiValue) }}</span><span v-else class="text-muted">--</span>
+                        </td>
+                        <td :class="color(t.oiChg4h)">
+                            <span v-if="t.oiChg4h !== null">{{ fmtPct(t.oiChg4h) }}%</span><span v-else class="text-muted">--</span>
+                        </td>
+                        <td :class="color(t.oiChg24h)" class="border-r">
+                            <span v-if="t.oiChg24h !== null">{{ fmtPct(t.oiChg24h) }}%</span><span v-else class="text-muted">--</span>
+                        </td>
+
+                        <td>
+                            <span :class="fundColor(t.fundingRate)">
+                                {{ t.fundingRate ? t.fundingRate.toFixed(4)+'%' : '--' }}
+                            </span>
+                        </td>
+                        <td>
+                            <span :class="fundColor(parseFloat(t.fundingAPY))">
+                                {{ t.fundingAPY ? t.fundingAPY+'%' : '--' }}
+                            </span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-4 text-center text-muted small opacity-50 pb-4">
+            Spot Price Source: Binance Spot API | Futures Data: Binance Fapi <br>
+            Top {{ limit }} Symbols by Combined Volume (Stablecoins Excluded) <br>
+            * 定时保存功能需保持网页开启
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                tokens: [],
+                loading: false,
+                statusMsg: '',
+                limit: 50, // 已调整为 50
+                autoSaveTime: '08:00', // 每天早上8点
+                lastAutoSaveDate: null // 记录上次自动保存的日期
+            }
+        },
+        methods: {
+            async fetchData() {
+                this.loading = true;
+                this.statusMsg = '获取市场概览...';
+                this.tokens = [];
+
+                try {
+                    // API Calls
+                    const [spotRes, futRes, premRes] = await Promise.all([
+                        fetch('https://api.binance.com/api/v3/ticker/24hr'),
+                        fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+                        fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
+                    ]);
+                    
+                    const spotData = await spotRes.json();
+                    const futData = await futRes.json();
+                    const premData = await premRes.json();
+
+                    // Maps
+                    const spotMap = {};
+                    spotData.forEach(d => { if(d.symbol.endsWith('USDT')) spotMap[d.symbol] = d; });
+                    const futMap = {};
+                    futData.forEach(d => { futMap[d.symbol] = d; });
+                    const premMap = {};
+                    premData.forEach(d => { premMap[d.symbol] = d; });
+
+                    let combined = [];
+                    const ignoreList = ['USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'BUSDUSDT', 'USDPUSDT', 'DAIUSDT', 'EURUSDT', 'AEURUSDT', 'WBTCUSDT'];
+
+                    for (let symbol in spotMap) {
+                        if (ignoreList.includes(symbol)) continue;
+                        if (symbol.includes('UPUSDT') || symbol.includes('DOWNUSDT')) continue;
+
+                        const s = spotMap[symbol];
+                        const f = futMap[symbol]; 
+
+                        if (f) { 
+                            const sVol = parseFloat(s.quoteVolume);
+                            const fVol = parseFloat(f.quoteVolume);
+                            
+                            combined.push({
+                                symbol: symbol,
+                                base: symbol.replace('USDT', ''),
+                                spotPrice: parseFloat(s.lastPrice),
+                                spotChg24h: parseFloat(s.priceChangePercent),
+                                spotVol: sVol,
+                                futVol: fVol,
+                                fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 : null,
+                                totalVol: sVol + fVol,
+                                // Placeholders
+                                spotChg1h: null, spotChg4h: null, 
+                                oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
+                            });
+                        }
+                    }
+
+                    combined.sort((a, b) => b.totalVol - a.totalVol);
+                    this.tokens = combined.slice(0, this.limit);
+
+                    this.statusMsg = '正在同步K线与OI...';
+                    this.processQueue();
+
+                } catch (err) {
+                    console.error(err);
+                    this.statusMsg = 'API连接失败';
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async processQueue() {
+                for (let i = 0; i < this.tokens.length; i++) {
+                    const t = this.tokens[i];
+                    
+                    const [resSpotK, resOI, resFund] = await Promise.all([
+                        this.getSpotKlines(t.symbol),
+                        this.getFutOIStats(t.symbol, t.spotPrice),
+                        this.getFutFundingStats(t.symbol)
+                    ]);
+
+                    if (resSpotK) { t.spotChg1h = resSpotK.chg1h; t.spotChg4h = resSpotK.chg4h; }
+                    if (resOI) { t.oiValue = resOI.val; t.oiChg4h = resOI.chg4h; t.oiChg24h = resOI.chg24h; }
+                    if (resFund) { t.fundingAPY = resFund; }
+
+                    // 轻微延时防止封IP
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                this.statusMsg = '数据更新完毕';
+                
+                // 数据加载完后，检查是否需要自动保存
+                this.checkAutoSave();
+            },
+
+            // --- 数据获取辅助函数 (保持不变) ---
+            async getSpotKlines(symbol) {
+                try {
+                    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=5`);
+                    const data = await res.json();
+                    if (!data || data.length < 2) return null;
+                    const cur = parseFloat(data[data.length-1][4]);
+                    const p1h = parseFloat(data[data.length-2][4]);
+                    const p4h = data.length >= 5 ? parseFloat(data[data.length-5][4]) : p1h;
+                    return { chg1h: ((cur - p1h)/p1h)*100, chg4h: ((cur - p4h)/p4h)*100 };
+                } catch (e) { return null; }
+            },
+            async getFutOIStats(symbol, refPrice) {
+                try {
+                    const resNow = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`);
+                    const dataNow = await resNow.json();
+                    const valNow = parseFloat(dataNow.openInterest) * refPrice; 
+                    const resHist = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=25`);
+                    const dataHist = await resHist.json();
+                    let chg4h = null, chg24h = null;
+                    if (Array.isArray(dataHist) && dataHist.length > 0) {
+                        const last = parseFloat(dataHist[dataHist.length-1].sumOpenInterestValue);
+                        if (dataHist.length >= 5) chg4h = ((last - parseFloat(dataHist[dataHist.length-5].sumOpenInterestValue))/parseFloat(dataHist[dataHist.length-5].sumOpenInterestValue))*100;
+                        if (dataHist.length >= 24) chg24h = ((last - parseFloat(dataHist[0].sumOpenInterestValue))/parseFloat(dataHist[0].sumOpenInterestValue))*100;
+                    }
+                    return { val: valNow, chg4h, chg24h };
+                } catch (e) { return { val: null, chg4h: null, chg24h: null }; }
+            },
+            async getFutFundingStats(symbol) {
+                try {
+                    const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=21`);
+                    const data = await res.json();
+                    if (!data || data.length === 0) return null;
+                    let sum = 0; data.forEach(d => sum += parseFloat(d.fundingRate));
+                    return (sum / data.length * 3 * 365 * 100).toFixed(2);
+                } catch (e) { return null; }
+            },
+
+            // --- 导出 CSV 功能 ---
+            exportToCSV() {
+                if (this.tokens.length === 0) return;
+
+                // 1. 定义 CSV 表头
+                const headers = [
+                    "Symbol", "Price", "1H %", "4H %", "24H %", 
+                    "Spot Vol", "Fut Vol", 
+                    "OI Value", "OI Chg 4H", "OI Chg 24H", 
+                    "Funding Rate", "7D APY", "Time"
+                ];
+
+                // 2. 构建数据行
+                const nowStr = new Date().toLocaleString();
+                const rows = this.tokens.map(t => {
+                    return [
+                        t.base,
+                        t.spotPrice,
+                        t.spotChg1h ? t.spotChg1h.toFixed(2) : "",
+                        t.spotChg4h ? t.spotChg4h.toFixed(2) : "",
+                        t.spotChg24h.toFixed(2),
+                        t.spotVol,
+                        t.futVol,
+                        t.oiValue ? t.oiValue : "",
+                        t.oiChg4h ? t.oiChg4h.toFixed(2) : "",
+                        t.oiChg24h ? t.oiChg24h.toFixed(2) : "",
+                        t.fundingRate ? t.fundingRate.toFixed(4) : "",
+                        t.fundingAPY ? t.fundingAPY : "",
+                        nowStr
+                    ].join(",");
+                });
+
+                // 3. 组合内容 (加入 BOM \uFEFF 防止 Excel 中文乱码)
+                const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
+
+                // 4. 创建 Blob 并下载
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                
+                // 文件名格式: Binance_Snapshot_2023-10-27_0800.csv
+                const dateFileName = new Date().toISOString().slice(0,10);
+                const timeFileName = new Date().toTimeString().slice(0,5).replace(':', '');
+                link.setAttribute("href", url);
+                link.setAttribute("download", `Binance_Snapshot_${dateFileName}_${timeFileName}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            },
+
+            // --- 定时任务逻辑 ---
+            checkAutoSave() {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMin = now.getMinutes();
+                const todayStr = now.toDateString();
+
+                // 逻辑：如果是 8点 (08:xx)，且今天还没保存过
+                // 我们稍微放宽一点，08:00 到 08:05 之间检测到就保存，防止08:00:00那毫秒没对上
+                if (currentHour === 8 && currentMin < 5) {
+                    if (this.lastAutoSaveDate !== todayStr) {
+                        console.log("触发定时保存...");
+                        this.exportToCSV();
+                        this.lastAutoSaveDate = todayStr; // 标记今天已保存
+                        // 可选：存入 localStorage 以防刷新页面后重复保存
+                        localStorage.setItem('binance_last_save', todayStr);
+                    }
+                }
+            },
+
+            // --- 格式化函数 (保持不变) ---
+            fmtPrice(p) { return !p ? '0.00' : (p<1 ? p.toFixed(5) : (p<10 ? p.toFixed(4) : p.toFixed(2))); },
+            fmtPct(p) { return p ? p.toFixed(2) : '0.00'; },
+            fmtVol(v) {
+                if(!v) return '0';
+                if(v>1e9) return (v/1e9).toFixed(2)+'B';
+                if(v>1e6) return (v/1e6).toFixed(1)+'M';
+                if(v>1e3) return (v/1e3).toFixed(0)+'K';
+                return v.toFixed(0);
+            },
+            color(v) { return v > 0 ? 'text-up' : (v < 0 ? 'text-down' : 'text-muted'); },
+            fundColor(v) { return v > 0 ? 'fund-pos' : (v < 0 ? 'fund-neg' : 'text-muted'); }
+        },
+        mounted() {
+            // 恢复上次保存日期状态
+            this.lastAutoSaveDate = localStorage.getItem('binance_last_save');
+
+            this.fetchData();
+            
+            // 60秒刷新一次数据
+            setInterval(() => {
+                if(!this.loading) this.fetchData();
+            }, 60000);
+
+            // 每分钟检查一次时间，用于触发定时保存
+            setInterval(() => {
+                this.checkAutoSave();
+            }, 60000); 
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
