@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binance Monitor Pro (Time & Export)</title>
+    <title>Binance Monitor Pro (Ranked)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     
@@ -45,7 +45,9 @@
             text-align: right;
             cursor: pointer;
         }
-        .table-custom thead th:first-child { text-align: left; padding-left: 10px; }
+        .table-custom thead th:first-child { text-align: center; padding-left: 5px; } /* 序号居中 */
+        .table-custom thead th:nth-child(2) { text-align: left; } /* 代币名靠左 */
+        
         .table-custom tbody tr { border-bottom: 1px solid var(--border-color); }
         .table-custom tbody tr:hover { background-color: var(--bg-hover); }
         .table-custom td {
@@ -55,13 +57,16 @@
             border-bottom: 1px solid #1a1a1a;
             white-space: nowrap;
         }
-        .table-custom td:first-child { text-align: left; padding-left: 10px; }
+        .table-custom td:first-child { text-align: center; padding-left: 5px; } /* 序号居中 */
+        .table-custom td:nth-child(2) { text-align: left; } /* 代币名靠左 */
 
         /* 颜色类 */
         .text-up { color: var(--up-color); }
         .text-down { color: var(--down-color); }
         .text-muted { color: var(--text-muted); }
         .symbol-text { font-size: 1rem; font-weight: bold; color: #fff; text-decoration: none; }
+        .rank-num { font-size: 0.8rem; color: #555; font-family: monospace; } /* 序号样式 */
+        
         .vol-spot { color: var(--spot-vol); opacity: 0.9; }
         .vol-fut { color: var(--fut-vol); opacity: 0.9; }
         .fund-pos { color: var(--funding-pos); font-weight: bold; }
@@ -91,7 +96,7 @@
 
         /* 时间显示模块 */
         .time-display {
-            font-family: 'Courier New', Courier, monospace; /* 等宽字体更像仪表盘 */
+            font-family: 'Courier New', Courier, monospace;
             font-size: 0.75rem;
             line-height: 1.3;
             text-align: right;
@@ -117,12 +122,12 @@
             <!-- 左侧标题 -->
             <div>
                 <span class="fw-bold text-white fs-5 me-2">BINANCE SCANNER</span>
-                <span class="badge bg-dark border border-secondary text-secondary fw-normal">Spot + Futures</span>
+                <span class="badge bg-dark border border-secondary text-secondary fw-normal">Top {{ limit }} Ranked</span>
             </div>
 
             <!-- 右侧控制区 -->
             <div class="d-flex align-items-center">
-                <!-- 时间显示区 (新增) -->
+                <!-- 时间显示区 -->
                 <div class="time-display d-none d-md-block">
                     <div>
                         <span class="time-label">Current:</span>
@@ -150,6 +155,7 @@
             <table class="table-custom">
                 <thead>
                     <tr>
+                        <th style="min-width: 40px;">#</th> <!-- 序号列 -->
                         <th style="min-width: 100px;">Symbol</th>
                         <th>Price (Spot)</th>
                         <th>1H %</th>
@@ -166,28 +172,39 @@
                 </thead>
                 <tbody>
                     <tr v-if="tokens.length === 0">
-                        <td colspan="12" class="text-center py-5 text-muted">
+                        <td colspan="13" class="text-center py-5 text-muted">
                             <span v-if="loading">Initializing Data...</span>
                             <span v-else>Waiting for connection...</span>
                         </td>
                     </tr>
-                    <tr v-for="t in tokens" :key="t.symbol">
+                    <tr v-for="(t, index) in tokens" :key="t.symbol">
+                        <!-- 序号 -->
+                        <td><span class="rank-num">{{ index + 1 }}</span></td>
+                        
+                        <!-- 代币名 -->
                         <td><span class="symbol-text">{{ t.base }}</span></td>
+                        
+                        <!-- 价格 -->
                         <td class="fw-bold text-white">${{ fmtPrice(t.spotPrice) }}</td>
                         
+                        <!-- 1H -->
                         <td :class="color(t.spotChg1h)">
                             <span v-if="t.spotChg1h !== null">{{ fmtPct(t.spotChg1h) }}%</span><span v-else class="text-muted">--</span>
                         </td>
+                        <!-- 4H -->
                         <td :class="color(t.spotChg4h)">
                             <span v-if="t.spotChg4h !== null">{{ fmtPct(t.spotChg4h) }}%</span><span v-else class="text-muted">--</span>
                         </td>
+                        <!-- 24H -->
                         <td :class="color(t.spotChg24h)" class="border-r fw-bold">
                             {{ fmtPct(t.spotChg24h) }}%
                         </td>
 
+                        <!-- Volume -->
                         <td class="vol-spot">${{ fmtVol(t.spotVol) }}</td>
                         <td class="vol-fut border-r">${{ fmtVol(t.futVol) }}</td>
 
+                        <!-- OI -->
                         <td class="text-white">
                             <span v-if="t.oiValue">${{ fmtVol(t.oiValue) }}</span><span v-else class="text-muted">--</span>
                         </td>
@@ -198,6 +215,7 @@
                             <span v-if="t.oiChg24h !== null">{{ fmtPct(t.oiChg24h) }}%</span><span v-else class="text-muted">--</span>
                         </td>
 
+                        <!-- Funding -->
                         <td>
                             <span :class="fundColor(t.fundingRate)">
                                 {{ t.fundingRate ? t.fundingRate.toFixed(4)+'%' : '--' }}
@@ -229,17 +247,15 @@
             return {
                 tokens: [],
                 loading: false,
-                limit: 50, // 已调整为 50
+                limit: 50,
                 currentTimeStr: '--:--:--',
                 lastUpdatedStr: '--:--:--',
                 lastAutoSaveDate: null
             }
         },
         methods: {
-            // 更新右上角时钟
             updateClock() {
                 const now = new Date();
-                // 格式化为 HH:mm:ss
                 this.currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false });
             },
 
@@ -297,14 +313,12 @@
                     combined.sort((a, b) => b.totalVol - a.totalVol);
                     this.tokens = combined.slice(0, this.limit);
 
-                    // 启动K线抓取队列
                     this.processQueue();
 
                 } catch (err) {
                     console.error(err);
                 } finally {
                     this.loading = false;
-                    // 更新 "最近更新" 时间
                     this.lastUpdatedStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
                 }
             },
@@ -367,10 +381,12 @@
 
             exportToCSV() {
                 if (this.tokens.length === 0) return;
-                const headers = ["Symbol", "Price", "1H %", "4H %", "24H %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Funding Rate", "7D APY", "Time"];
+                // CSV 表头增加 Rank
+                const headers = ["Rank", "Symbol", "Price", "1H %", "4H %", "24H %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Funding Rate", "7D APY", "Time"];
                 const nowStr = new Date().toLocaleString();
-                const rows = this.tokens.map(t => {
+                const rows = this.tokens.map((t, index) => {
                     return [
+                        index + 1, // 写入排名
                         t.base, t.spotPrice, 
                         t.spotChg1h?.toFixed(2)||"", t.spotChg4h?.toFixed(2)||"", t.spotChg24h.toFixed(2),
                         t.spotVol, t.futVol,
@@ -414,13 +430,10 @@
             this.lastAutoSaveDate = localStorage.getItem('binance_last_save');
             this.fetchData();
             
-            // 每秒更新时钟
             setInterval(this.updateClock, 1000);
             this.updateClock();
 
-            // 60秒刷新数据
             setInterval(() => { if(!this.loading) this.fetchData(); }, 60000);
-            // 60秒检查自动保存
             setInterval(this.checkAutoSave, 60000); 
         }
     }).mount('#app');
