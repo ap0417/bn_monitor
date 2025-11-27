@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Binance Monitor Pro (Ranked)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    
+
     <style>
         :root {
             --bg-body: #000000;
@@ -21,7 +22,7 @@
             --funding-pos: #ff9f43;
             --funding-neg: #00d2d3;
         }
-        
+
         body {
             background-color: var(--bg-body);
             color: var(--text-primary);
@@ -30,10 +31,17 @@
             overflow-x: hidden;
         }
 
-        .container-fluid { padding: 0 20px; }
+        .container-fluid {
+            padding: 0 20px;
+        }
 
         /* 表格样式 */
-        .table-custom { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .table-custom {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
         .table-custom thead th {
             background-color: #080808;
             color: #666;
@@ -41,15 +49,34 @@
             font-size: 0.75rem;
             padding: 12px 8px;
             border-bottom: 1px solid var(--border-color);
-            position: sticky; top: 0; z-index: 10;
+            position: sticky;
+            top: 0;
+            z-index: 10;
             text-align: right;
             cursor: pointer;
         }
-        .table-custom thead th:first-child { text-align: center; padding-left: 5px; } /* 序号居中 */
-        .table-custom thead th:nth-child(2) { text-align: left; } /* 代币名靠左 */
-        
-        .table-custom tbody tr { border-bottom: 1px solid var(--border-color); }
-        .table-custom tbody tr:hover { background-color: var(--bg-hover); }
+
+        .table-custom thead th:first-child {
+            text-align: center;
+            padding-left: 5px;
+        }
+
+        /* 序号居中 */
+        .table-custom thead th:nth-child(2) {
+            text-align: right;
+            padding-right: 15px;
+        }
+
+        /* 代币名靠左 -> 改为靠右以接近价格 */
+
+        .table-custom tbody tr {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-custom tbody tr:hover {
+            background-color: var(--bg-hover);
+        }
+
         .table-custom td {
             padding: 10px 8px;
             vertical-align: middle;
@@ -57,42 +84,138 @@
             border-bottom: 1px solid #1a1a1a;
             white-space: nowrap;
         }
-        .table-custom td:first-child { text-align: center; padding-left: 5px; } /* 序号居中 */
-        .table-custom td:nth-child(2) { text-align: left; } /* 代币名靠左 */
+
+        .table-custom td:first-child {
+            text-align: center;
+            padding-left: 5px;
+        }
+
+        /* 序号居中 */
+        .table-custom td:nth-child(2) {
+            text-align: right;
+            padding-right: 15px;
+        }
+
+        /* 代币名靠左 */
 
         /* 颜色类 */
-        .text-up { color: var(--up-color); }
-        .text-down { color: var(--down-color); }
-        .text-muted { color: var(--text-muted); }
-        .symbol-text { font-size: 1rem; font-weight: bold; color: #fff; text-decoration: none; }
-        .rank-num { font-size: 0.8rem; color: #555; font-family: monospace; } /* 序号样式 */
-        
-        .vol-spot { color: var(--spot-vol); opacity: 0.9; }
-        .vol-fut { color: var(--fut-vol); opacity: 0.9; }
-        .fund-pos { color: var(--funding-pos); font-weight: bold; }
-        .fund-neg { color: var(--funding-neg); font-weight: bold; }
+        .text-up {
+            color: var(--up-color);
+        }
+
+        .text-down {
+            color: var(--down-color);
+        }
+
+        .text-muted {
+            color: var(--text-muted);
+        }
+
+        .symbol-text {
+            font-size: 1rem;
+            font-weight: bold;
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .rank-num {
+            font-size: 0.8rem;
+            color: #555;
+            font-family: monospace;
+        }
+
+        /* 序号样式 */
+
+        .vol-spot {
+            color: var(--spot-vol);
+            opacity: 0.9;
+        }
+
+        .vol-fut {
+            color: var(--fut-vol);
+            opacity: 0.9;
+        }
+
+        .fund-pos {
+            color: var(--funding-pos);
+            font-weight: bold;
+        }
+
+        .fund-neg {
+            color: var(--funding-neg);
+            font-weight: bold;
+        }
 
         /* 加载条 */
-        .loading-line { height: 2px; background: #111; width: 100%; position: fixed; top: 0; left: 0; z-index: 9999; }
+        .loading-line {
+            height: 2px;
+            background: #111;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 9999;
+        }
+
         .loading-line::after {
-            content: ''; position: absolute; height: 100%; width: 30%; background: var(--spot-vol);
+            content: '';
+            position: absolute;
+            height: 100%;
+            width: 30%;
+            background: var(--spot-vol);
             animation: slide 1.5s infinite ease-in-out;
         }
-        @keyframes slide { from { left: -30%; } to { left: 100%; } }
+
+        @keyframes slide {
+            from {
+                left: -30%;
+            }
+
+            to {
+                left: 100%;
+            }
+        }
 
         /* 顶部栏布局 */
-        .top-bar { display: flex; justify-content: space-between; align-items: center; padding: 15px 5px; }
-        
-        /* 按钮样式 */
-        .btn-action { 
-            background: #222; border: 1px solid #333; color: #ccc; 
-            padding: 6px 16px; font-size: 0.8rem; cursor: pointer; transition: 0.2s;
-            margin-left: 10px; height: 36px;
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 5px;
         }
-        .btn-action:hover { background: #333; color: #fff; }
-        .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-csv { border-color: #2c3e50; color: #81c784; }
-        .btn-csv:hover { background: #1b2631; color: #a5d6a7; }
+
+        /* 按钮样式 */
+        .btn-action {
+            background: #222;
+            border: 1px solid #333;
+            color: #ccc;
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-left: 10px;
+            height: 36px;
+        }
+
+        .btn-action:hover {
+            background: #333;
+            color: #fff;
+        }
+
+        .btn-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-csv {
+            border-color: #2c3e50;
+            color: #81c784;
+        }
+
+        .btn-csv:hover {
+            background: #1b2631;
+            color: #a5d6a7;
+        }
 
         /* 时间显示模块 */
         .time-display {
@@ -104,340 +227,495 @@
             padding-right: 15px;
             margin-right: 5px;
         }
-        .time-label { color: #555; margin-right: 5px; }
-        .time-val { color: #bbb; letter-spacing: 0.5px; }
-        .time-updated { color: var(--spot-vol); }
 
-        .border-r { border-right: 1px solid #1a1a1a; }
+        .time-label {
+            color: #555;
+            margin-right: 5px;
+        }
+
+        .time-val {
+            color: #bbb;
+            letter-spacing: 0.5px;
+        }
+
+        .time-updated {
+            color: var(--spot-vol);
+        }
+
+        .border-r {
+            border-right: 1px solid #1a1a1a;
+        }
     </style>
 </head>
+
 <body>
 
-<div id="app">
-    <div class="loading-line" v-if="loading"></div>
+    <div id="app">
+        <div class="loading-line" v-if="loading"></div>
 
-    <div class="container-fluid">
-        <!-- 头部 -->
-        <div class="top-bar">
-            <!-- 左侧标题 -->
-            <div>
-                <span class="fw-bold text-white fs-5 me-2">BINANCE SCANNER</span>
-                <span class="badge bg-dark border border-secondary text-secondary fw-normal">Top {{ limit }} Ranked</span>
-            </div>
-
-            <!-- 右侧控制区 -->
-            <div class="d-flex align-items-center">
-                <!-- 时间显示区 -->
-                <div class="time-display d-none d-md-block">
-                    <div>
-                        <span class="time-label">Current:</span>
-                        <span class="time-val fw-bold">{{ currentTimeStr }}</span>
-                    </div>
-                    <div>
-                        <span class="time-label">Updated:</span>
-                        <span class="time-val time-updated">{{ lastUpdatedStr }}</span>
-                    </div>
+        <div class="container-fluid">
+            <!-- 头部 -->
+            <div class="top-bar">
+                <!-- 左侧标题 -->
+                <div>
+                    <span class="fw-bold text-white fs-5 me-2">BINANCE SCANNER</span>
+                    <span class="badge bg-dark border border-secondary text-secondary fw-normal">Top {{ limit }}
+                        Ranked</span>
                 </div>
 
-                <!-- 按钮区 -->
-                <button @click="exportToCSV" class="btn-action btn-csv" :disabled="loading || tokens.length===0">
-                    📥 导出 CSV
-                </button>
+                <!-- 右侧控制区 -->
+                <div class="d-flex align-items-center">
+                    <!-- 时间显示区 -->
+                    <div class="time-display d-none d-md-block">
+                        <div>
+                            <span class="time-label">Current:</span>
+                            <span class="time-val fw-bold">{{ currentTimeStr }}</span>
+                        </div>
+                        <div>
+                            <span class="time-label">Updated:</span>
+                            <span class="time-val time-updated">{{ lastUpdatedStr }}</span>
+                        </div>
+                    </div>
 
-                <button @click="fetchData" class="btn-action" :disabled="loading">
-                    {{ loading ? 'Updating...' : 'Refresh' }}
-                </button>
+                    <!-- 按钮区 -->
+                    <button @click="exportToCSV" class="btn-action btn-csv" :disabled="loading || tokens.length===0">
+                        📥 导出 CSV
+                    </button>
+
+                    <button @click="fetchData" class="btn-action" :disabled="loading">
+                        {{ loading ? 'Updating...' : 'Refresh' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 数据表格 -->
+            <div class="table-responsive">
+                <table class="table-custom">
+                    <thead>
+                        <tr>
+                            <th style="min-width: 40px;" @click="sortBy('rank')">
+                                # <span v-if="sortKey === 'rank'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th style="min-width: 80px;" @click="sortBy('base')">
+                                Symbol <span v-if="sortKey === 'base'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th @click="sortBy('spotPrice')">
+                                Price (Spot) <span v-if="sortKey === 'spotPrice'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                            <th @click="sortBy('spotChg1h')">
+                                1H % <span v-if="sortKey === 'spotChg1h'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th @click="sortBy('spotChg4h')">
+                                4H % <span v-if="sortKey === 'spotChg4h'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="border-r" @click="sortBy('spotChg24h')">
+                                24H % <span v-if="sortKey === 'spotChg24h'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th @click="sortBy('spotChg3d')">
+                                3D % <span v-if="sortKey === 'spotChg3d'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="border-r" @click="sortBy('spotChg7d')">
+                                7D % <span v-if="sortKey === 'spotChg7d'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th @click="sortBy('spotVol')">
+                                Spot Vol <span v-if="sortKey === 'spotVol'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="border-r" @click="sortBy('futVol')">
+                                Fut Vol <span v-if="sortKey === 'futVol'">{{ sortOrder === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th @click="sortBy('oiValue')">
+                                OI (Value) <span v-if="sortKey === 'oiValue'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                            <th @click="sortBy('oiChg4h')">
+                                OI Chg 4H <span v-if="sortKey === 'oiChg4h'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                            <th class="border-r" @click="sortBy('oiChg24h')">
+                                OI Chg 24H <span v-if="sortKey === 'oiChg24h'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                            <th @click="sortBy('fundingRate')">
+                                Funding Rate <span v-if="sortKey === 'fundingRate'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                            <th @click="sortBy('fundingAPY')">
+                                7D APY <span v-if="sortKey === 'fundingAPY'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                    }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="tokens.length === 0">
+                            <td colspan="15" class="text-center py-5 text-muted">
+                                <span v-if="loading">Initializing Data...</span>
+                                <span v-else>Waiting for connection...</span>
+                            </td>
+                        </tr>
+                        <tr v-for="(t, index) in sortedTokens" :key="t.symbol">
+                            <!-- 序号 -->
+                            <td><span class="rank-num">{{ t.originalRank }}</span></td>
+
+                            <!-- 代币名 -->
+                            <td><span class="symbol-text">{{ t.base }}</span></td>
+
+                            <!-- 价格 -->
+                            <td class="fw-bold text-white">${{ fmtPrice(t.spotPrice) }}</td>
+
+                            <!-- 1H -->
+                            <td :class="color(t.spotChg1h)">
+                                <span v-if="t.spotChg1h !== null">{{ fmtPct(t.spotChg1h) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+                            <!-- 4H -->
+                            <td :class="color(t.spotChg4h)">
+                                <span v-if="t.spotChg4h !== null">{{ fmtPct(t.spotChg4h) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+                            <!-- 24H -->
+                            <td :class="color(t.spotChg24h)" class="border-r fw-bold">
+                                {{ fmtPct(t.spotChg24h) }}%
+                            </td>
+                            <!-- 3D -->
+                            <td :class="color(t.spotChg3d)">
+                                <span v-if="t.spotChg3d !== null">{{ fmtPct(t.spotChg3d) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+                            <!-- 7D -->
+                            <td :class="color(t.spotChg7d)" class="border-r">
+                                <span v-if="t.spotChg7d !== null">{{ fmtPct(t.spotChg7d) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+
+                            <!-- Volume -->
+                            <td class="vol-spot">${{ fmtVol(t.spotVol) }}</td>
+                            <td class="vol-fut border-r">${{ fmtVol(t.futVol) }}</td>
+
+                            <!-- OI -->
+                            <td class="text-white">
+                                <span v-if="t.oiValue">${{ fmtVol(t.oiValue) }}</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+                            <td :class="color(t.oiChg4h)">
+                                <span v-if="t.oiChg4h !== null">{{ fmtPct(t.oiChg4h) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+                            <td :class="color(t.oiChg24h)" class="border-r">
+                                <span v-if="t.oiChg24h !== null">{{ fmtPct(t.oiChg24h) }}%</span><span v-else
+                                    class="text-muted">--</span>
+                            </td>
+
+                            <!-- Funding -->
+                            <td>
+                                <span :class="fundColor(t.fundingRate)">
+                                    {{ t.fundingRate ? t.fundingRate.toFixed(4)+'%' : '--' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span :class="fundColor(parseFloat(t.fundingAPY))">
+                                    {{ t.fundingAPY ? t.fundingAPY+'%' : '--' }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 text-center text-muted small opacity-50 pb-4">
+                Spot Price Source: Binance Spot API | Futures Data: Binance Fapi <br>
+                Top {{ limit }} Symbols by Combined Volume (Stablecoins Excluded) <br>
+                * Auto-save enabled at 08:00 Local Time
             </div>
         </div>
-
-        <!-- 数据表格 -->
-        <div class="table-responsive">
-            <table class="table-custom">
-                <thead>
-                    <tr>
-                        <th style="min-width: 40px;">#</th> <!-- 序号列 -->
-                        <th style="min-width: 100px;">Symbol</th>
-                        <th>Price (Spot)</th>
-                        <th>1H %</th>
-                        <th>4H %</th>
-                        <th class="border-r">24H %</th>
-                        <th>Spot Vol</th>
-                        <th class="border-r">Fut Vol</th>
-                        <th>OI (Value)</th>
-                        <th>OI Chg 4H</th>
-                        <th class="border-r">OI Chg 24H</th>
-                        <th>Funding Rate</th>
-                        <th>7D APY</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-if="tokens.length === 0">
-                        <td colspan="13" class="text-center py-5 text-muted">
-                            <span v-if="loading">Initializing Data...</span>
-                            <span v-else>Waiting for connection...</span>
-                        </td>
-                    </tr>
-                    <tr v-for="(t, index) in tokens" :key="t.symbol">
-                        <!-- 序号 -->
-                        <td><span class="rank-num">{{ index + 1 }}</span></td>
-                        
-                        <!-- 代币名 -->
-                        <td><span class="symbol-text">{{ t.base }}</span></td>
-                        
-                        <!-- 价格 -->
-                        <td class="fw-bold text-white">${{ fmtPrice(t.spotPrice) }}</td>
-                        
-                        <!-- 1H -->
-                        <td :class="color(t.spotChg1h)">
-                            <span v-if="t.spotChg1h !== null">{{ fmtPct(t.spotChg1h) }}%</span><span v-else class="text-muted">--</span>
-                        </td>
-                        <!-- 4H -->
-                        <td :class="color(t.spotChg4h)">
-                            <span v-if="t.spotChg4h !== null">{{ fmtPct(t.spotChg4h) }}%</span><span v-else class="text-muted">--</span>
-                        </td>
-                        <!-- 24H -->
-                        <td :class="color(t.spotChg24h)" class="border-r fw-bold">
-                            {{ fmtPct(t.spotChg24h) }}%
-                        </td>
-
-                        <!-- Volume -->
-                        <td class="vol-spot">${{ fmtVol(t.spotVol) }}</td>
-                        <td class="vol-fut border-r">${{ fmtVol(t.futVol) }}</td>
-
-                        <!-- OI -->
-                        <td class="text-white">
-                            <span v-if="t.oiValue">${{ fmtVol(t.oiValue) }}</span><span v-else class="text-muted">--</span>
-                        </td>
-                        <td :class="color(t.oiChg4h)">
-                            <span v-if="t.oiChg4h !== null">{{ fmtPct(t.oiChg4h) }}%</span><span v-else class="text-muted">--</span>
-                        </td>
-                        <td :class="color(t.oiChg24h)" class="border-r">
-                            <span v-if="t.oiChg24h !== null">{{ fmtPct(t.oiChg24h) }}%</span><span v-else class="text-muted">--</span>
-                        </td>
-
-                        <!-- Funding -->
-                        <td>
-                            <span :class="fundColor(t.fundingRate)">
-                                {{ t.fundingRate ? t.fundingRate.toFixed(4)+'%' : '--' }}
-                            </span>
-                        </td>
-                        <td>
-                            <span :class="fundColor(parseFloat(t.fundingAPY))">
-                                {{ t.fundingAPY ? t.fundingAPY+'%' : '--' }}
-                            </span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-        
-        <div class="mt-4 text-center text-muted small opacity-50 pb-4">
-            Spot Price Source: Binance Spot API | Futures Data: Binance Fapi <br>
-            Top {{ limit }} Symbols by Combined Volume (Stablecoins Excluded) <br>
-            * Auto-save enabled at 08:00 Local Time
-        </div>
     </div>
-</div>
 
-<script>
-    const { createApp } = Vue;
+    <script>
+        const { createApp } = Vue;
 
-    createApp({
-        data() {
-            return {
-                tokens: [],
-                loading: false,
-                limit: 50,
-                currentTimeStr: '--:--:--',
-                lastUpdatedStr: '--:--:--',
-                lastAutoSaveDate: null
-            }
-        },
-        methods: {
-            updateClock() {
-                const now = new Date();
-                this.currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false });
+        createApp({
+            data() {
+                return {
+                    tokens: [],
+                    loading: false,
+                    limit: 50,
+                    currentTimeStr: '--:--:--',
+                    lastUpdatedStr: '--:--:--',
+                    lastAutoSaveDate: null,
+                    sortKey: 'rank', // 默认按排名(Volume)排序
+                    sortOrder: 'asc'
+                }
             },
+            computed: {
+                sortedTokens() {
+                    // 复制一份数组以避免直接修改原数组
+                    let list = this.tokens.slice();
 
-            async fetchData() {
-                this.loading = true;
-                this.tokens = [];
+                    // 如果没有数据或没有排序键，直接返回
+                    if (!list.length) return list;
 
-                try {
-                    const [spotRes, futRes, premRes] = await Promise.all([
-                        fetch('https://api.binance.com/api/v3/ticker/24hr'),
-                        fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
-                        fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
-                    ]);
-                    
-                    const spotData = await spotRes.json();
-                    const futData = await futRes.json();
-                    const premData = await premRes.json();
+                    // 特殊处理：默认 rank 排序其实就是按原始顺序
+                    if (this.sortKey === 'rank') {
+                        return this.sortOrder === 'asc' ? list : list.reverse();
+                    }
 
-                    const spotMap = {};
-                    spotData.forEach(d => { if(d.symbol.endsWith('USDT')) spotMap[d.symbol] = d; });
-                    const futMap = {};
-                    futData.forEach(d => { futMap[d.symbol] = d; });
-                    const premMap = {};
-                    premData.forEach(d => { premMap[d.symbol] = d; });
+                    list.sort((a, b) => {
+                        let valA = a[this.sortKey];
+                        let valB = b[this.sortKey];
 
-                    let combined = [];
-                    const ignoreList = ['USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'BUSDUSDT', 'USDPUSDT', 'DAIUSDT', 'EURUSDT', 'AEURUSDT', 'WBTCUSDT'];
+                        // 处理 null 值，通常让 null 排在最后
+                        if (valA === null || valA === undefined) return 1;
+                        if (valB === null || valB === undefined) return -1;
 
-                    for (let symbol in spotMap) {
-                        if (ignoreList.includes(symbol)) continue;
-                        if (symbol.includes('UPUSDT') || symbol.includes('DOWNUSDT')) continue;
+                        // 字符串比较
+                        if (typeof valA === 'string') {
+                            valA = valA.toLowerCase();
+                            valB = valB.toLowerCase();
+                        }
 
-                        const s = spotMap[symbol];
-                        const f = futMap[symbol]; 
+                        // 数字比较 (fundingAPY 可能是字符串形式的数字)
+                        if (this.sortKey === 'fundingAPY') {
+                            valA = parseFloat(valA) || -9999;
+                            valB = parseFloat(valB) || -9999;
+                        }
 
-                        if (f) { 
-                            const sVol = parseFloat(s.quoteVolume);
-                            const fVol = parseFloat(f.quoteVolume);
-                            
-                            combined.push({
-                                symbol: symbol,
-                                base: symbol.replace('USDT', ''),
-                                spotPrice: parseFloat(s.lastPrice),
-                                spotChg24h: parseFloat(s.priceChangePercent),
-                                spotVol: sVol,
-                                futVol: fVol,
-                                fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 : null,
-                                totalVol: sVol + fVol,
-                                spotChg1h: null, spotChg4h: null, 
-                                oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
-                            });
+                        if (valA < valB) return this.sortOrder === 'asc' ? -1 : 1;
+                        if (valA > valB) return this.sortOrder === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+
+                    return list;
+                }
+            },
+            methods: {
+                sortBy(key) {
+                    if (this.sortKey === key) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortKey = key;
+                        this.sortOrder = 'desc'; // 切换新列时默认降序，通常看涨幅/价格/量都是降序比较多
+                        // 特殊情况：Symbol 和 Rank 可能习惯升序，但统一降序也行，用户点两下即可
+                        if (key === 'rank' || key === 'base') {
+                            this.sortOrder = 'asc';
                         }
                     }
+                },
+                updateClock() {
+                    const now = new Date();
+                    this.currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false });
+                },
 
-                    combined.sort((a, b) => b.totalVol - a.totalVol);
-                    this.tokens = combined.slice(0, this.limit);
+                async fetchData() {
+                    this.loading = true;
+                    this.tokens = [];
 
-                    this.processQueue();
+                    try {
+                        const [spotRes, futRes, premRes] = await Promise.all([
+                            fetch('https://api.binance.com/api/v3/ticker/24hr'),
+                            fetch('https://fapi.binance.com/fapi/v1/ticker/24hr'),
+                            fetch('https://fapi.binance.com/fapi/v1/premiumIndex')
+                        ]);
 
-                } catch (err) {
-                    console.error(err);
-                } finally {
-                    this.loading = false;
-                    this.lastUpdatedStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
-                }
-            },
+                        const spotData = await spotRes.json();
+                        const futData = await futRes.json();
+                        const premData = await premRes.json();
 
-            async processQueue() {
-                for (let i = 0; i < this.tokens.length; i++) {
-                    const t = this.tokens[i];
-                    
-                    const [resSpotK, resOI, resFund] = await Promise.all([
-                        this.getSpotKlines(t.symbol),
-                        this.getFutOIStats(t.symbol, t.spotPrice),
-                        this.getFutFundingStats(t.symbol)
-                    ]);
+                        const spotMap = {};
+                        spotData.forEach(d => { if (d.symbol.endsWith('USDT')) spotMap[d.symbol] = d; });
+                        const futMap = {};
+                        futData.forEach(d => { futMap[d.symbol] = d; });
+                        const premMap = {};
+                        premData.forEach(d => { premMap[d.symbol] = d; });
 
-                    if (resSpotK) { t.spotChg1h = resSpotK.chg1h; t.spotChg4h = resSpotK.chg4h; }
-                    if (resOI) { t.oiValue = resOI.val; t.oiChg4h = resOI.chg4h; t.oiChg24h = resOI.chg24h; }
-                    if (resFund) { t.fundingAPY = resFund; }
+                        let combined = [];
+                        const ignoreList = ['USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'BUSDUSDT', 'USDPUSDT', 'DAIUSDT', 'EURUSDT', 'AEURUSDT', 'WBTCUSDT'];
 
-                    await new Promise(r => setTimeout(r, 100));
-                }
-                this.checkAutoSave();
-            },
+                        for (let symbol in spotMap) {
+                            if (ignoreList.includes(symbol)) continue;
+                            if (symbol.includes('UPUSDT') || symbol.includes('DOWNUSDT')) continue;
 
-            async getSpotKlines(symbol) {
-                try {
-                    const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=5`);
-                    const data = await res.json();
-                    if (!data || data.length < 2) return null;
-                    const cur = parseFloat(data[data.length-1][4]);
-                    const p1h = parseFloat(data[data.length-2][4]);
-                    const p4h = data.length >= 5 ? parseFloat(data[data.length-5][4]) : p1h;
-                    return { chg1h: ((cur - p1h)/p1h)*100, chg4h: ((cur - p4h)/p4h)*100 };
-                } catch (e) { return null; }
-            },
-            async getFutOIStats(symbol, refPrice) {
-                try {
-                    const resNow = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`);
-                    const dataNow = await resNow.json();
-                    const valNow = parseFloat(dataNow.openInterest) * refPrice; 
-                    const resHist = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=25`);
-                    const dataHist = await resHist.json();
-                    let chg4h = null, chg24h = null;
-                    if (Array.isArray(dataHist) && dataHist.length > 0) {
-                        const last = parseFloat(dataHist[dataHist.length-1].sumOpenInterestValue);
-                        if (dataHist.length >= 5) chg4h = ((last - parseFloat(dataHist[dataHist.length-5].sumOpenInterestValue))/parseFloat(dataHist[dataHist.length-5].sumOpenInterestValue))*100;
-                        if (dataHist.length >= 24) chg24h = ((last - parseFloat(dataHist[0].sumOpenInterestValue))/parseFloat(dataHist[0].sumOpenInterestValue))*100;
+                            const s = spotMap[symbol];
+                            const f = futMap[symbol];
+
+                            if (f) {
+                                const sVol = parseFloat(s.quoteVolume);
+                                const fVol = parseFloat(f.quoteVolume);
+
+                                combined.push({
+                                    symbol: symbol,
+                                    base: symbol.replace('USDT', ''),
+                                    spotPrice: parseFloat(s.lastPrice),
+                                    spotChg24h: parseFloat(s.priceChangePercent),
+                                    spotVol: sVol,
+                                    futVol: fVol,
+                                    fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 : null,
+                                    totalVol: sVol + fVol,
+                                    spotChg1h: null, spotChg4h: null, spotChg3d: null, spotChg7d: null,
+                                    oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
+                                });
+                            }
+                        }
+
+                        combined.sort((a, b) => b.totalVol - a.totalVol);
+                        // 截取前 Limit 个
+                        const topTokens = combined.slice(0, this.limit);
+
+                        // 为每个 token 加上原始排名索引，方便排序后显示原始 Rank
+                        topTokens.forEach((t, i) => t.originalRank = i + 1);
+
+                        this.tokens = topTokens;
+
+                        this.processQueue();
+
+                    } catch (err) {
+                        console.error(err);
+                    } finally {
+                        this.loading = false;
+                        this.lastUpdatedStr = new Date().toLocaleTimeString('en-GB', { hour12: false });
                     }
-                    return { val: valNow, chg4h, chg24h };
-                } catch (e) { return { val: null, chg4h: null, chg24h: null }; }
-            },
-            async getFutFundingStats(symbol) {
-                try {
-                    const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=21`);
-                    const data = await res.json();
-                    if (!data || data.length === 0) return null;
-                    let sum = 0; data.forEach(d => sum += parseFloat(d.fundingRate));
-                    return (sum / data.length * 3 * 365 * 100).toFixed(2);
-                } catch (e) { return null; }
-            },
+                },
 
-            exportToCSV() {
-                if (this.tokens.length === 0) return;
-                // CSV 表头增加 Rank
-                const headers = ["Rank", "Symbol", "Price", "1H %", "4H %", "24H %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Funding Rate", "7D APY", "Time"];
-                const nowStr = new Date().toLocaleString();
-                const rows = this.tokens.map((t, index) => {
-                    return [
-                        index + 1, // 写入排名
-                        t.base, t.spotPrice, 
-                        t.spotChg1h?.toFixed(2)||"", t.spotChg4h?.toFixed(2)||"", t.spotChg24h.toFixed(2),
-                        t.spotVol, t.futVol,
-                        t.oiValue||"", t.oiChg4h?.toFixed(2)||"", t.oiChg24h?.toFixed(2)||"",
-                        t.fundingRate?.toFixed(4)||"", t.fundingAPY||"", nowStr
-                    ].join(",");
-                });
-                const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `Binance_Snapshot_${new Date().toISOString().slice(0,10)}.csv`;
-                link.click();
-            },
+                async processQueue() {
+                    for (let i = 0; i < this.tokens.length; i++) {
+                        const t = this.tokens[i];
 
-            checkAutoSave() {
-                const now = new Date();
-                const todayStr = now.toDateString();
-                if (now.getHours() === 8 && now.getMinutes() < 5) {
-                    if (this.lastAutoSaveDate !== todayStr) {
-                        this.exportToCSV();
-                        this.lastAutoSaveDate = todayStr;
-                        localStorage.setItem('binance_last_save', todayStr);
+                        const [resSpotK, resSpotDaily, resOI, resFund] = await Promise.all([
+                            this.getSpotKlines(t.symbol),
+                            this.getDailyKlines(t.symbol),
+                            this.getFutOIStats(t.symbol, t.spotPrice),
+                            this.getFutFundingStats(t.symbol)
+                        ]);
+
+                        if (resSpotK) { t.spotChg1h = resSpotK.chg1h; t.spotChg4h = resSpotK.chg4h; }
+                        if (resSpotDaily) { t.spotChg3d = resSpotDaily.chg3d; t.spotChg7d = resSpotDaily.chg7d; }
+                        if (resOI) { t.oiValue = resOI.val; t.oiChg4h = resOI.chg4h; t.oiChg24h = resOI.chg24h; }
+                        if (resFund) { t.fundingAPY = resFund; }
+
+                        await new Promise(r => setTimeout(r, 100));
                     }
-                }
-            },
+                    this.checkAutoSave();
+                },
 
-            fmtPrice(p) { return !p ? '0.00' : (p<1 ? p.toFixed(5) : (p<10 ? p.toFixed(4) : p.toFixed(2))); },
-            fmtPct(p) { return p ? p.toFixed(2) : '0.00'; },
-            fmtVol(v) {
-                if(!v) return '0';
-                if(v>1e9) return (v/1e9).toFixed(2)+'B';
-                if(v>1e6) return (v/1e6).toFixed(1)+'M';
-                if(v>1e3) return (v/1e3).toFixed(0)+'K';
-                return v.toFixed(0);
-            },
-            color(v) { return v > 0 ? 'text-up' : (v < 0 ? 'text-down' : 'text-muted'); },
-            fundColor(v) { return v > 0 ? 'fund-pos' : (v < 0 ? 'fund-neg' : 'text-muted'); }
-        },
-        mounted() {
-            this.lastAutoSaveDate = localStorage.getItem('binance_last_save');
-            this.fetchData();
-            
-            setInterval(this.updateClock, 1000);
-            this.updateClock();
+                async getSpotKlines(symbol) {
+                    try {
+                        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=5`);
+                        const data = await res.json();
+                        if (!data || data.length < 2) return null;
+                        const cur = parseFloat(data[data.length - 1][4]);
+                        const p1h = parseFloat(data[data.length - 2][4]);
+                        const p4h = data.length >= 5 ? parseFloat(data[data.length - 5][4]) : p1h;
+                        return { chg1h: ((cur - p1h) / p1h) * 100, chg4h: ((cur - p4h) / p4h) * 100 };
+                    } catch (e) { return null; }
+                },
+                async getDailyKlines(symbol) {
+                    try {
+                        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=8`);
+                        const data = await res.json();
+                        if (!data || data.length < 2) return null;
+                        const cur = parseFloat(data[data.length - 1][4]); // Current close (or latest price)
+                        // data[length-1] is today (incomplete), data[length-2] is yesterday close (1D ago)
+                        // We want 3D change: compare current with close of 3 days ago.
+                        // If we have 8 candles: [0]...[7]. [7] is today. [6] is 1d ago close. [4] is 3d ago close. [0] is 7d ago close.
 
-            setInterval(() => { if(!this.loading) this.fetchData(); }, 60000);
-            setInterval(this.checkAutoSave, 60000); 
-        }
-    }).mount('#app');
-</script>
+                        let chg3d = null, chg7d = null;
+                        if (data.length >= 4) {
+                            const p3d = parseFloat(data[data.length - 4][4]);
+                            chg3d = ((cur - p3d) / p3d) * 100;
+                        }
+                        if (data.length >= 8) {
+                            const p7d = parseFloat(data[data.length - 8][4]);
+                            chg7d = ((cur - p7d) / p7d) * 100;
+                        }
+                        return { chg3d, chg7d };
+                    } catch (e) { return null; }
+                },
+                async getFutOIStats(symbol, refPrice) {
+                    try {
+                        const resNow = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`);
+                        const dataNow = await resNow.json();
+                        const valNow = parseFloat(dataNow.openInterest) * refPrice;
+                        const resHist = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=25`);
+                        const dataHist = await resHist.json();
+                        let chg4h = null, chg24h = null;
+                        if (Array.isArray(dataHist) && dataHist.length > 0) {
+                            const last = parseFloat(dataHist[dataHist.length - 1].sumOpenInterestValue);
+                            if (dataHist.length >= 5) chg4h = ((last - parseFloat(dataHist[dataHist.length - 5].sumOpenInterestValue)) / parseFloat(dataHist[dataHist.length - 5].sumOpenInterestValue)) * 100;
+                            if (dataHist.length >= 24) chg24h = ((last - parseFloat(dataHist[0].sumOpenInterestValue)) / parseFloat(dataHist[0].sumOpenInterestValue)) * 100;
+                        }
+                        return { val: valNow, chg4h, chg24h };
+                    } catch (e) { return { val: null, chg4h: null, chg24h: null }; }
+                },
+                async getFutFundingStats(symbol) {
+                    try {
+                        const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=21`);
+                        const data = await res.json();
+                        if (!data || data.length === 0) return null;
+                        let sum = 0; data.forEach(d => sum += parseFloat(d.fundingRate));
+                        return (sum / data.length * 3 * 365 * 100).toFixed(2);
+                    } catch (e) { return null; }
+                },
+
+                exportToCSV() {
+                    if (this.tokens.length === 0) return;
+                    // CSV 表头增加 Rank
+                    const headers = ["Rank", "Symbol", "Price", "1H %", "4H %", "24H %", "3D %", "7D %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Funding Rate", "7D APY", "Time"];
+                    const nowStr = new Date().toLocaleString();
+                    const rows = this.tokens.map((t, index) => {
+                        return [
+                            index + 1, // 写入排名
+                            t.base, t.spotPrice,
+                            t.spotChg1h?.toFixed(2) || "", t.spotChg4h?.toFixed(2) || "", t.spotChg24h.toFixed(2),
+                            t.spotChg3d?.toFixed(2) || "", t.spotChg7d?.toFixed(2) || "",
+                            t.spotVol, t.futVol,
+                            t.oiValue || "", t.oiChg4h?.toFixed(2) || "", t.oiChg24h?.toFixed(2) || "",
+                            t.fundingRate?.toFixed(4) || "", t.fundingAPY || "", nowStr
+                        ].join(",");
+                    });
+                    const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Binance_Snapshot_${new Date().toISOString().slice(0, 10)}.csv`;
+                    link.click();
+                },
+
+                checkAutoSave() {
+                    const now = new Date();
+                    const todayStr = now.toDateString();
+                    if (now.getHours() === 8 && now.getMinutes() < 5) {
+                        if (this.lastAutoSaveDate !== todayStr) {
+                            this.exportToCSV();
+                            this.lastAutoSaveDate = todayStr;
+                            localStorage.setItem('binance_last_save', todayStr);
+                        }
+                    }
+                },
+
+                fmtPrice(p) { return !p ? '0.00' : (p < 1 ? p.toFixed(5) : (p < 10 ? p.toFixed(4) : p.toFixed(2))); },
+                fmtPct(p) { return p ? p.toFixed(2) : '0.00'; },
+                fmtVol(v) {
+                    if (!v) return '0';
+                    if (v > 1e9) return (v / 1e9).toFixed(2) + 'B';
+                    if (v > 1e6) return (v / 1e6).toFixed(1) + 'M';
+                    if (v > 1e3) return (v / 1e3).toFixed(0) + 'K';
+                    return v.toFixed(0);
+                },
+                color(v) { return v > 0 ? 'text-up' : (v < 0 ? 'text-down' : 'text-muted'); },
+                fundColor(v) { return v > 0 ? 'fund-pos' : (v < 0 ? 'fund-neg' : 'text-muted'); }
+            },
+            mounted() {
+                this.lastAutoSaveDate = localStorage.getItem('binance_last_save');
+                this.fetchData();
+
+                setInterval(this.updateClock, 1000);
+                this.updateClock();
+
+                setInterval(() => { if (!this.loading) this.fetchData(); }, 60000);
+                setInterval(this.checkAutoSave, 60000);
+            }
+        }).mount('#app');
+    </script>
 
 </body>
+
 </html>
