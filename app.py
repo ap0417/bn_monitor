@@ -4,38 +4,91 @@ import asyncio
 from google import genai
 from google.genai import types
 import datetime
+import pytz # 需要安装: pip install pytz
 
 # --- 1. 页面基础配置 ---
-st.set_page_config(page_title="Crypto 信息收集助手", page_icon="🕵️", layout="wide")
+st.set_page_config(page_title="Crypto 情报终端", page_icon="🚀", layout="wide")
 
-st.title("🕵️ Crypto 信息收集助手")
-st.caption("由 Gemini 2.5 & Google Search 提供支持 | 多标的分析模式")
+st.title("🚀 Crypto 情报终端")
+st.caption("由 Gemini 2.0 Flash & Google Search 提供支持 | 宏观/微观双模式")
 
-# --- 2. 侧边栏配置 ---
+# --- 2. 侧边栏配置 (全局设置) ---
 with st.sidebar:
-    st.header("⚙️ 设置")
+    st.header("⚙️ 全局设置")
     api_key = st.text_input("Gemini API Key", type="password", help="在此输入你的 Google AI Studio Key")    
+    
     st.markdown("---")
     st.markdown("### 📅 时间范围")
-    # 增加时间选择器
     time_range = st.selectbox(
         "选择回溯时间",
-        options=["过去 24 小时", "过去 3 天", "过去 7 天", "过去 30 天"],
-        index=2 # 默认选7天
-    )
-    
-    st.markdown("### 🎯 研究标的")
-    # 增加标的输入框，默认给几个例子
-    assets_input = st.text_input(
-        "输入代币名称 (用逗号分隔)", 
-        value="BTC, ETH, AAVE",
-        placeholder="例如: BTC, SOL, PEPE"
+        options=["过去 4 小时", "过去 24 小时", "过去 3 天", "过去 7 天"],
+        index=1 
     )
 
 # --- 3. 核心逻辑函数 ---
+
+def get_current_beijing_time():
+    """获取格式化的北京时间"""
+    beijing_tz = pytz.timezone('Asia/Shanghai')
+    now = datetime.datetime.now(beijing_tz)
+    return now.strftime("%Y-%m-%d %H:%M")
+
+def get_market_news_report(client, time_str):
+    """
+    新功能：全网新闻聚合 (Strict Mode)
+    """
+    current_time = get_current_beijing_time()
+    
+    # 核心：将之前调试好的 Prompt 注入
+    # 注意：我们直接把当前时间喂给 AI，不需要它再写代码去算
+    prompt = f"""
+    Current Beijing Time (Anchor): **{current_time}**.
+    Timeframe to search: **{time_str}**.
+
+    ### Role & Objective
+    You are an expert Cryptocurrency Market Intelligence Analyst. Your goal is to aggregate recent news strictly from the **Target Source List**.
+    
+    ### Target Source List (Iterate through EACH)
+    1. CoinDesk, Cointelegraph, The Block, Decrypt
+    2. Foresight News, BlockBeats, Odaily, PANews, Wu Blockchain, Jinse Finance
+    3. CoinMarketCap, CoinGecko, RootData
+    4. Bloomberg Crypto, CNBC Crypto
+
+    ### Operational Workflow
+    1. **Search:** Use Google Search to retrieve news for the requested timeframe ({time_str}) for the sources above.
+    2. **Calc:** Convert all relative times (e.g., "3 hours ago") to absolute **Beijing Time** based on the Anchor Time: {current_time}.
+    3. **Filter:** Focus on major events only.
+
+    ### Strict Output Format
+    Output in **Chinese**. You must output a separate section for EVERY website group or major website.
+
+    **Format Structure:**
+    ### [Website Name]
+    *   **[MM-DD HH:mm] [News Title]**: Summary of the event.
+    *   *(If no news is found, state: "该时段内无重大独立报道")*
+
+    ... (Repeat for sources) ...
+
+    ### Overall Sentiment Summary
+    *   A brief paragraph on market sentiment (Bullish/Bearish/Neutral) and main drivers.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.0-flash', # 建议使用最新的 Flash 模型
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                response_modalities=["TEXT"]
+            )
+        )
+        return response
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 def get_asset_report(client, asset, time_str):
     """
-    针对单个标的调用 Gemini 进行联网搜索和总结
+    原功能：单个标的分析
     """
     today = datetime.date.today().strftime("%Y-%m-%d")
     
@@ -48,15 +101,13 @@ def get_asset_report(client, asset, time_str):
     2. **核心摘要**：一句话总结该标的这段时间的整体表现（看涨/看跌/震荡）。
     3. **情报列表**：
        - 请列出最重要的市场动态，**按重要程度降序排列**。
-       - **数量限制**：最多输出 15 条，少于 15 条则列出实际数量。
+       - **数量限制**：最多输出 15 条。
        - 每条格式：【时间/来源】+ 新闻内容 + (对价格的影响分析)。
-    
-    请确保信息来源真实，去除重复信息。
     """
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash', # 确保使用支持搜索的模型
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -67,75 +118,96 @@ def get_asset_report(client, asset, time_str):
     except Exception as e:
         return f"Error: {str(e)}"
 
+# 辅助函数：解析 Google Grounding 的链接
+def display_grounding_links(response):
+    if hasattr(response, 'candidates') and response.candidates:
+        candidate = response.candidates[0]
+        if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+            metadata = candidate.grounding_metadata
+            if metadata.search_entry_point:
+                with st.expander("🔗 查看原始引用来源", expanded=False):
+                    st.markdown(metadata.search_entry_point.rendered_content, unsafe_allow_html=True)
+
 async def get_asset_report_async(client, asset, time_str):
     return await asyncio.to_thread(get_asset_report, client, asset, time_str)
 
-# --- 4. 主界面交互 ---
-if st.button("🚀 开始搜集情报", type="primary"):
-    if not api_key:
-        st.error("请先在左侧侧边栏输入 API Key！")
-    else:
-        # 处理用户输入的标的字符串，分割成列表
-        # 例如 "BTC, ETH,  AAVE " -> ['BTC', 'ETH', 'AAVE']
-        assets_list = [x.strip().upper() for x in assets_input.split(',') if x.strip()]
+async def get_market_news_async(client, time_str):
+    return await asyncio.to_thread(get_market_news_report, client, time_str)
 
-        if not assets_list:
-            st.warning("请输入至少一个标的。")
-        else:
-            try:
-                client = genai.Client(api_key=api_key)
-                
-                # 创建一个状态容器，显示进度
-                status_container = st.status("正在启动 AI 研究员...", expanded=True)
-                
-                async def run_analysis():
-                    tasks = []
-                    for asset in assets_list:
-                        status_container.write(f"🔍 正在准备搜索 {asset} 的数据...")
-                        tasks.append(get_asset_report_async(client, asset, time_range))
-                    return await asyncio.gather(*tasks)
+# --- 4. 主界面交互 (Tab 结构) ---
 
-                # 运行异步任务
-                results = asyncio.run(run_analysis())
+if not api_key:
+    st.warning("👈 请先在左侧侧边栏输入 Gemini API Key 以开始使用。")
+else:
+    client = genai.Client(api_key=api_key)
+    
+    # 创建两个选项卡
+    tab1, tab2 = st.tabs(["📰 全球市场速览 (News)", "🪙 币种深度投研 (Assets)"])
+
+    # === Tab 1: 全球市场速览 (新功能) ===
+    with tab1:
+        st.subheader("全网主流媒体信息聚合")
+        st.info(f"当前模式：扫描 **{time_range}** 内全球 15+ 顶流 Crypto 媒体的突发新闻。")
+        
+        if st.button("🚀 扫描全网新闻", type="primary", key="btn_market"):
+            with st.spinner("正在同步北京时间并检索全球媒体数据..."):
+                # 异步调用新函数
+                result = asyncio.run(get_market_news_async(client, time_range))
                 
-                # 循环展示结果
-                for i, asset in enumerate(assets_list):
-                    response = results[i]
+                if isinstance(result, str) and "Error" in result:
+                    st.error(result)
+                elif hasattr(result, 'text'):
+                    st.markdown(result.text)
+                    display_grounding_links(result)
+                else:
+                    st.error("未能获取数据，请重试。")
+
+    # === Tab 2: 币种深度投研 (原功能) ===
+    with tab2:
+        st.subheader("指定标的信息收集")
+        
+        # 将原来的输入框移到这里
+        assets_input = st.text_input(
+            "输入代币名称 (用逗号分隔)", 
+            value="BTC, ETH, SOL",
+            placeholder="例如: BTC, PEPE, WIF",
+            key="asset_input"
+        )
+        
+        if st.button("🔍 开始分析标的", key="btn_assets"):
+            assets_list = [x.strip().upper() for x in assets_input.split(',') if x.strip()]
+
+            if not assets_list:
+                st.warning("请输入至少一个标的。")
+            else:
+                try:
+                    status_container = st.status("正在启动 AI 研究员...", expanded=True)
                     
-                    # 结果展示区 - 使用 expander 折叠框，让界面更整洁
-                    with st.expander(f"📊 {asset} 近期信息总结", expanded=True):
-                        if isinstance(response, str) and "Error" in response:
-                            st.error(f"搜索 {asset} 时发生错误: {response}")
-                        elif hasattr(response, 'text'):
-                            st.markdown(response.text)
-                            
-                            # 显示来源链接 (如果有)
-                            if response.candidates and response.candidates[0].grounding_metadata:
-                                metadata = response.candidates[0].grounding_metadata
-                                if metadata.search_entry_point:
-                                    st.caption("信息搜索方向:")
-                                    # 解析 rendered_content 提取链接
-                                    html_content = metadata.search_entry_point.rendered_content
-                                    # print(f"DEBUG HTML CONTENT: {html_content}") # Debug
-                                    
-                                    # Try to find all links
-                                    links = re.findall(r'<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)</a>', html_content, re.IGNORECASE | re.DOTALL)
-                                    
-                                    if links:
-                                        for link, title in links:
-                                            # Clean up title (remove tags if any)
-                                            title = re.sub(r'<[^>]+>', '', title).strip()
-                                            st.markdown(f"- [{title}]({link})")
-                                    else:
-                                        st.markdown(html_content, unsafe_allow_html=True)
-                        else:
-                            st.warning(f"未能获取 {asset} 的有效内容。")
-                
-                status_container.update(label="✅ 所有情报搜集完成！", state="complete", expanded=False)
+                    async def run_analysis():
+                        tasks = []
+                        for asset in assets_list:
+                            status_container.write(f"🕵️ 正在搜集 {asset} 的情报...")
+                            tasks.append(get_asset_report_async(client, asset, time_range))
+                        return await asyncio.gather(*tasks)
 
-            except Exception as e:
-                st.error(f"全局错误: {e}")
+                    results = asyncio.run(run_analysis())
+                    
+                    for i, asset in enumerate(assets_list):
+                        response = results[i]
+                        with st.expander(f"📊 {asset} 分析报告", expanded=True):
+                            if isinstance(response, str) and "Error" in response:
+                                st.error(f"搜索 {asset} 时发生错误: {response}")
+                            elif hasattr(response, 'text'):
+                                st.markdown(response.text)
+                                display_grounding_links(response)
+                            else:
+                                st.warning(f"未能获取 {asset} 的有效内容。")
+                    
+                    status_container.update(label="✅ 所有情报搜集完成！", state="complete", expanded=False)
+
+                except Exception as e:
+                    st.error(f"运行时错误: {e}")
 
 # --- 5. 底部页脚 ---
 st.markdown("---")
-st.caption("💡 提示：输入标的越多，等待时间越长。建议一次查询 3-5 个标的。")
+st.caption("提示：'全球市场速览' 消耗 Tokens 较多，建议使用 Gemini 1.5 Pro 或 2.0 Flash 模型。")
