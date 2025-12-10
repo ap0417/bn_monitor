@@ -2,14 +2,17 @@ import requests
 import pandas as pd
 import time
 
-def fetch_top_200_coins():
+mktcap_cutoff = 250
+
+
+def fetch_coins_info():
     url = "https://api.coingecko.com/api/v3/coins/markets"
     
     # CoinGecko allows up to 250 per page
     params = {
         'vs_currency': 'usd',
         'order': 'market_cap_desc',
-        'per_page': 200,
+        'per_page': mktcap_cutoff,
         'page': 1,
         'sparkline': 'false'
     }
@@ -18,7 +21,7 @@ def fetch_top_200_coins():
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
 
-    print("Fetching top 200 coins from CoinGecko...")
+    print("Fetching top {} coins from CoinGecko...".format(mktcap_cutoff))
     
     try:
         response = requests.get(url, params=params, headers=headers, timeout=10)
@@ -56,7 +59,7 @@ def fetch_top_200_coins():
         df = df[existing_columns]
 
         # Save to CSV
-        filename = 'top_200_coingecko.csv'
+        filename = 'data/top_{}_coingecko.csv'.format(mktcap_cutoff)
         df.to_csv(filename, index=False, encoding='utf-8-sig')
         
         print(f"Successfully saved {len(df)} coins to {filename}")
@@ -65,4 +68,4 @@ def fetch_top_200_coins():
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    fetch_top_200_coins()
+    fetch_coins_info()
