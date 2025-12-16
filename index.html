@@ -349,7 +349,7 @@
                                     }}</span>
                             </th>
                             <th @click="sortBy('fundingRate')">
-                                Funding Rate <span v-if="sortKey === 'fundingRate'">{{ sortOrder === 'asc' ? '▲' : '▼'
+                                Current APR <span v-if="sortKey === 'fundingRate'">{{ sortOrder === 'asc' ? '▲' : '▼'
                                     }}</span>
                             </th>
                             <th @click="sortBy('fundingAPY')">
@@ -421,7 +421,7 @@
                             <!-- Funding -->
                             <td>
                                 <span :class="fundColor(t.fundingRate)">
-                                    {{ t.fundingRate ? t.fundingRate.toFixed(4)+'%' : '--' }}
+                                    {{ t.fundingRate ? t.fundingRate.toFixed(2)+'%' : '--' }}
                                 </span>
                             </td>
                             <td>
@@ -584,7 +584,8 @@
                                     spotChg24h: parseFloat(s.priceChangePercent),
                                     spotVol: sVol,
                                     futVol: fVol,
-                                    fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 : null,
+                                    // 年化 = 资金费率 * 3 (8小时一次) * 365
+                                    fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 * 3 * 365 : null,
                                     totalVol: sVol + fVol,
                                     spotChg1h: null, spotChg4h: null, spotChg3d: null, spotChg7d: null,
                                     oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
@@ -666,20 +667,49 @@
                     } catch (e) { return null; }
                 },
                 async getFutOIStats(symbol, refPrice) {
+                    let valNow = null;
+                    let chg4h = null;
+                    let chg24h = null;
+
+                    // 1. 获取当前 OI
                     try {
                         const resNow = await fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`);
-                        const dataNow = await resNow.json();
-                        const valNow = parseFloat(dataNow.openInterest) * refPrice;
-                        const resHist = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=25`);
-                        const dataHist = await resHist.json();
-                        let chg4h = null, chg24h = null;
-                        if (Array.isArray(dataHist) && dataHist.length > 0) {
-                            const last = parseFloat(dataHist[dataHist.length - 1].sumOpenInterestValue);
-                            if (dataHist.length >= 5) chg4h = ((last - parseFloat(dataHist[dataHist.length - 5].sumOpenInterestValue)) / parseFloat(dataHist[dataHist.length - 5].sumOpenInterestValue)) * 100;
-                            if (dataHist.length >= 24) chg24h = ((last - parseFloat(dataHist[0].sumOpenInterestValue)) / parseFloat(dataHist[0].sumOpenInterestValue)) * 100;
+                        if (resNow.ok) {
+                            const dataNow = await resNow.json();
+                            if (dataNow && dataNow.openInterest) {
+                                valNow = parseFloat(dataNow.openInterest) * refPrice;
+                            }
                         }
-                        return { val: valNow, chg4h, chg24h };
-                    } catch (e) { return { val: null, chg4h: null, chg24h: null }; }
+                    } catch (e) {
+                        console.error(`Failed to fetch current OI for ${symbol}:`, e);
+                    }
+
+                    // 2. 获取历史 OI (用于计算变化)
+                    // 注意: futures/data 其实可能存在 CORS 问题或访问限制，如果失败则只显示当前 OI
+                    try {
+                        const resHist = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${symbol}&period=1h&limit=25`);
+                        if (resHist.ok) {
+                            const dataHist = await resHist.json();
+                            if (Array.isArray(dataHist) && dataHist.length > 0) {
+                                const last = parseFloat(dataHist[dataHist.length - 1].sumOpenInterestValue);
+                                // dataHist 通常是按时间升序 [0]是最旧, [len-1]是最新
+                                // 4H Change: 对比倒数第5个 (index = length - 5)
+                                if (dataHist.length >= 5) {
+                                    const prev4h = parseFloat(dataHist[dataHist.length - 5].sumOpenInterestValue);
+                                    if (prev4h) chg4h = ((last - prev4h) / prev4h) * 100;
+                                }
+                                // 24H Change: 对比第1个 (index = 0, limit=25 -> 24h ago approx)
+                                if (dataHist.length >= 24) {
+                                    const prev24h = parseFloat(dataHist[0].sumOpenInterestValue);
+                                    if (prev24h) chg24h = ((last - prev24h) / prev24h) * 100;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Failed to fetch hist OI for ${symbol}:`, e);
+                    }
+
+                    return { val: valNow, chg4h, chg24h };
                 },
                 async getFutFundingStats(symbol) {
                     try {
