@@ -352,10 +352,7 @@
                                 Current APR <span v-if="sortKey === 'fundingRate'">{{ sortOrder === 'asc' ? '▲' : '▼'
                                     }}</span>
                             </th>
-                            <th @click="sortBy('fundingAPY')">
-                                7D APY <span v-if="sortKey === 'fundingAPY'">{{ sortOrder === 'asc' ? '▲' : '▼'
-                                    }}</span>
-                            </th>
+
                         </tr>
                     </thead>
                     <tbody>
@@ -424,11 +421,7 @@
                                     {{ t.fundingRate ? t.fundingRate.toFixed(2)+'%' : '--' }}
                                 </span>
                             </td>
-                            <td>
-                                <span :class="fundColor(parseFloat(t.fundingAPY))">
-                                    {{ t.fundingAPY ? t.fundingAPY+'%' : '--' }}
-                                </span>
-                            </td>
+
                         </tr>
                     </tbody>
                 </table>
@@ -616,17 +609,15 @@
                     for (let i = 0; i < this.tokens.length; i++) {
                         const t = this.tokens[i];
 
-                        const [resSpotK, resSpotDaily, resOI, resFund] = await Promise.all([
+                        const [resSpotK, resSpotDaily, resOI] = await Promise.all([
                             this.getSpotKlines(t.symbol),
                             this.getDailyKlines(t.symbol),
-                            this.getFutOIStats(t.symbol, t.spotPrice),
-                            this.getFutFundingStats(t.symbol)
+                            this.getFutOIStats(t.symbol, t.spotPrice)
                         ]);
 
                         if (resSpotK) { t.spotChg1h = resSpotK.chg1h; t.spotChg4h = resSpotK.chg4h; }
                         if (resSpotDaily) { t.spotChg3d = resSpotDaily.chg3d; t.spotChg7d = resSpotDaily.chg7d; }
                         if (resOI) { t.oiValue = resOI.val; t.oiChg4h = resOI.chg4h; t.oiChg24h = resOI.chg24h; }
-                        if (resFund) { t.fundingAPY = resFund; }
 
                         await new Promise(r => setTimeout(r, 100));
                     }
@@ -711,20 +702,12 @@
 
                     return { val: valNow, chg4h, chg24h };
                 },
-                async getFutFundingStats(symbol) {
-                    try {
-                        const res = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=21`);
-                        const data = await res.json();
-                        if (!data || data.length === 0) return null;
-                        let sum = 0; data.forEach(d => sum += parseFloat(d.fundingRate));
-                        return (sum / data.length * 3 * 365 * 100).toFixed(2);
-                    } catch (e) { return null; }
-                },
+
 
                 exportToCSV() {
                     if (this.tokens.length === 0) return;
                     // CSV 表头增加 Rank
-                    const headers = ["Rank", "Symbol", "Price", "1H %", "4H %", "24H %", "3D %", "7D %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Funding Rate", "7D APY", "Time"];
+                    const headers = ["Rank", "Symbol", "Price", "1H %", "4H %", "24H %", "3D %", "7D %", "Spot Vol", "Fut Vol", "OI Value", "OI Chg 4H", "OI Chg 24H", "Current APR", "Time"];
                     const nowStr = new Date().toLocaleString();
                     const rows = this.tokens.map((t, index) => {
                         return [
@@ -734,7 +717,7 @@
                             t.spotChg3d?.toFixed(2) || "", t.spotChg7d?.toFixed(2) || "",
                             t.spotVol, t.futVol,
                             t.oiValue || "", t.oiChg4h?.toFixed(2) || "", t.oiChg24h?.toFixed(2) || "",
-                            t.fundingRate?.toFixed(4) || "", t.fundingAPY || "", nowStr
+                            t.fundingRate?.toFixed(2) || "", nowStr
                         ].join(",");
                     });
                     const csvContent = "\uFEFF" + headers.join(",") + "\n" + rows.join("\n");
