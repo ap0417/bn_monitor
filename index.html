@@ -265,6 +265,18 @@
 
                 <!-- 右侧控制区 -->
                 <div class="d-flex align-items-center">
+                    <!-- 搜索框 -->
+                    <div class="me-3 position-relative">
+                        <input type="text" v-model="searchQuery" placeholder="Filter: BTC, ETH..."
+                            class="form-control form-control-sm bg-dark text-light border-secondary"
+                            style="width: 180px; padding-right: 30px;">
+                        <button v-if="searchQuery" @click="resetFilter"
+                            class="position-absolute top-50 end-0 translate-middle-y btn btn-link text-decoration-none"
+                            style="font-size: 1.2rem; padding: 0 8px; color: #fff;">
+                            &times;
+                        </button>
+                    </div>
+
                     <!-- 时间显示区 -->
                     <div class="time-display d-none d-md-block">
                         <div>
@@ -443,13 +455,27 @@
                     lastUpdatedStr: '--:--:--',
                     lastAutoSaveDate: null,
                     sortKey: 'rank', // 默认按排名(Volume)排序
-                    sortOrder: 'asc'
+                    sortOrder: 'asc',
+                    searchQuery: ''
+
                 }
             },
             computed: {
                 sortedTokens() {
                     // 复制一份数组以避免直接修改原数组
                     let list = this.tokens.slice();
+
+                    // 搜索过滤
+                    if (this.searchQuery) {
+                        const queries = this.searchQuery.toUpperCase().split(/[,，\s]+/).filter(x => x);
+                        if (queries.length > 0) {
+                            list = list.filter(t => {
+                                const base = t.base.toUpperCase();
+                                return queries.some(q => base === q || base.includes(q));
+                            });
+                        }
+                    }
+
 
                     // 如果没有数据或没有排序键，直接返回
                     if (!list.length) return list;
@@ -500,6 +526,10 @@
                         }
                     }
                 },
+                resetFilter() {
+                    this.searchQuery = '';
+                },
+
                 updateClock() {
                     const now = new Date();
                     this.currentTimeStr = now.toLocaleTimeString('en-GB', { hour12: false });
