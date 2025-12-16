@@ -551,7 +551,13 @@
                         const premData = await premRes.json();
 
                         const spotMap = {};
-                        spotData.forEach(d => { if (d.symbol.endsWith('USDT')) spotMap[d.symbol] = d; });
+                        spotData.forEach(d => {
+                            // 过滤掉非USDT交易对以及前一日收盘价为0的无效数据（处理字符串 "0.00000000"）
+                            // 使用 > 0 确保排除除此之外，也能排除负值或解析错误的 NaN
+                            if (d.symbol.endsWith('USDT') && parseFloat(d.prevClosePrice) > 0) {
+                                spotMap[d.symbol] = d;
+                            }
+                        });
                         const futMap = {};
                         futData.forEach(d => { futMap[d.symbol] = d; });
                         const premMap = {};
