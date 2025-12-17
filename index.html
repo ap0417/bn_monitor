@@ -759,7 +759,7 @@
                 setInterval(this.updateClock, 1000);
                 this.updateClock();
 
-                setInterval(() => { if (!this.loading) this.fetchData(); }, 60000);
+                setInterval(() => { if (!this.loading) this.fetchData(); }, 300000);
                 setInterval(this.checkAutoSave, 60000);
             }
         }).mount('#app');
