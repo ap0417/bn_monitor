@@ -628,14 +628,14 @@
                     for (let i = 0; i < this.tokens.length; i++) {
                         const t = this.tokens[i];
 
-                        const [resSpotK, resSpotDaily, resOI] = await Promise.all([
-                            this.getSpotKlines(t.symbol),
-                            this.getDailyKlines(t.symbol),
+                        const [resFutK, resFutDaily, resOI] = await Promise.all([
+                            this.getFutKlines(t.symbol),
+                            this.getFutDailyKlines(t.symbol),
                             this.getFutOIStats(t.symbol, t.spotPrice)
                         ]);
 
-                        if (resSpotK) { t.spotChg1h = resSpotK.chg1h; t.spotChg4h = resSpotK.chg4h; }
-                        if (resSpotDaily) { t.spotChg3d = resSpotDaily.chg3d; t.spotChg7d = resSpotDaily.chg7d; }
+                        if (resFutK) { t.spotChg1h = resFutK.chg1h; t.spotChg4h = resFutK.chg4h; }
+                        if (resFutDaily) { t.spotChg3d = resFutDaily.chg3d; t.spotChg7d = resFutDaily.chg7d; }
                         if (resOI) { t.oiValue = resOI.val; t.oiChg4h = resOI.chg4h; t.oiChg24h = resOI.chg24h; }
 
                         await new Promise(r => setTimeout(r, 100));
@@ -643,9 +643,9 @@
                     this.checkAutoSave();
                 },
 
-                async getSpotKlines(symbol) {
+                async getFutKlines(symbol) {
                     try {
-                        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1h&limit=5`);
+                        const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1h&limit=5`);
                         const data = await res.json();
                         if (!data || data.length < 2) return null;
                         const cur = parseFloat(data[data.length - 1][4]);
@@ -654,9 +654,9 @@
                         return { chg1h: ((cur - p1h) / p1h) * 100, chg4h: ((cur - p4h) / p4h) * 100 };
                     } catch (e) { return null; }
                 },
-                async getDailyKlines(symbol) {
+                async getFutDailyKlines(symbol) {
                     try {
-                        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=8`);
+                        const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=1d&limit=8`);
                         const data = await res.json();
                         if (!data || data.length < 2) return null;
                         const cur = parseFloat(data[data.length - 1][4]); // Current close (or latest price)
