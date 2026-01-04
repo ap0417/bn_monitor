@@ -428,8 +428,8 @@
             </div>
 
             <div class="mt-4 text-center text-muted small opacity-50 pb-4">
-                Spot Price Source: Binance Spot API | Futures Data: Binance Fapi <br>
-                Top {{ limit }} Symbols by Combined Volume (Stablecoins Excluded) <br>
+                Price Source: Binance Spot/Futures API | Futures Data: Binance Fapi <br>
+                Top {{ limit }} Symbols by Futures Volume (Stablecoins Excluded) <br>
                 * Auto-save enabled at 08:00 Local Time
             </div>
         </div>
@@ -443,7 +443,7 @@
                 return {
                     tokens: [],
                     loading: false,
-                    limit: 50,
+                    limit: 100,
                     currentTimeStr: '--:--:--',
                     lastUpdatedStr: '--:--:--',
                     lastAutoSaveDate: null,
@@ -559,35 +559,54 @@
                         let combined = [];
                         const ignoreList = ['USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'BUSDUSDT', 'USDPUSDT', 'DAIUSDT', 'EURUSDT', 'AEURUSDT', 'WBTCUSDT'];
 
-                        for (let symbol in spotMap) {
+                        // 获取当前时间戳（毫秒）
+                        const now = Date.now();
+                        const thirtyMinutesAgo = now - (30 * 60 * 1000); // 30分钟前的时间戳
+
+                        // 合并所有标的：既有现货又有期货的，以及只有期货的
+                        const allSymbols = new Set([...Object.keys(spotMap), ...Object.keys(futMap)]);
+
+                        for (let symbol of allSymbols) {
                             if (ignoreList.includes(symbol)) continue;
                             if (symbol.includes('UPUSDT') || symbol.includes('DOWNUSDT')) continue;
+                            if (!symbol.endsWith('USDT')) continue;
 
                             const s = spotMap[symbol];
                             const f = futMap[symbol];
 
-                            if (f) {
-                                const sVol = parseFloat(s.quoteVolume);
-                                const fVol = parseFloat(f.quoteVolume);
+                            // 至少需要有期货数据
+                            if (!f) continue;
 
-                                combined.push({
-                                    symbol: symbol,
-                                    base: symbol.replace('USDT', ''),
-                                    spotPrice: parseFloat(s.lastPrice),
-                                    spotChg24h: parseFloat(s.priceChangePercent),
-                                    spotVol: sVol,
-                                    futVol: fVol,
-                                    // 年化 = 资金费率 * 3 (8小时一次) * 365
-                                    fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 * 3 * 365 : null,
-                                    totalVol: sVol + fVol,
-                                    spotChg1h: null, spotChg4h: null, spotChg3d: null, spotChg7d: null,
-                                    oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
-                                });
+                            // 过滤已下架的交易对：如果 closeTime 比当前时间早30分钟以上，认为已下架
+                            if (f.closeTime && f.closeTime < thirtyMinutesAgo) {
+                                continue;
                             }
+
+                            const sVol = s ? parseFloat(s.quoteVolume) : 0;
+                            const fVol = parseFloat(f.quoteVolume);
+
+                            // 价格优先使用现货，如果没有现货则使用期货价格
+                            const price = s ? parseFloat(s.lastPrice) : parseFloat(f.lastPrice);
+                            // 涨跌幅优先使用现货，如果没有现货则使用期货涨跌幅
+                            const chg24h = s ? parseFloat(s.priceChangePercent) : parseFloat(f.priceChangePercent);
+
+                            combined.push({
+                                symbol: symbol,
+                                base: symbol.replace('USDT', ''),
+                                spotPrice: price,
+                                spotChg24h: chg24h,
+                                spotVol: sVol,
+                                futVol: fVol,
+                                // 年化 = 资金费率 * 3 (8小时一次) * 365
+                                fundingRate: premMap[symbol] ? parseFloat(premMap[symbol].lastFundingRate) * 100 * 3 * 365 : null,
+                                totalVol: sVol + fVol,
+                                spotChg1h: null, spotChg4h: null, spotChg3d: null, spotChg7d: null,
+                                oiValue: null, oiChg4h: null, oiChg24h: null, fundingAPY: null
+                            });
                         }
 
-                        combined.sort((a, b) => b.totalVol - a.totalVol);
-                        // 截取前 Limit 个
+                        combined.sort((a, b) => b.futVol - a.futVol);
+                        // 截取前 Limit 个（按期货交易量排序）
                         const topTokens = combined.slice(0, this.limit);
 
                         // 为每个 token 加上原始排名索引，方便排序后显示原始 Rank
@@ -759,7 +778,7 @@
                 setInterval(this.updateClock, 1000);
                 this.updateClock();
 
-                setInterval(() => { if (!this.loading) this.fetchData(); }, 300000);
+                setInterval(() => { if (!this.loading) this.fetchData(); }, 900000);
                 setInterval(this.checkAutoSave, 60000);
             }
         }).mount('#app');
